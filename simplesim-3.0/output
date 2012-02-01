@@ -1,0 +1,61 @@
+cp /home/gavin/CS6290/simplesim-3.0/CPU2000int/252.eon/data/ref/input/eon.dat .  
+cp /home/gavin/CS6290/simplesim-3.0/CPU2000int/252.eon/data/ref/input/materials .  
+cp /home/gavin/CS6290/simplesim-3.0/CPU2000int/252.eon/data/ref/input/spectra.dat .  
+/home/gavin/CS6290/simplesim-3.0/redir.sh  /home/gavin/CS6290/results/Naive/eon.cook.stdout \
+	  /home/gavin/CS6290/results/Naive/eon.cook.stderr /home/gavin/CS6290/simplesim-3.0/sim-safe \
+	   -max:inst 1000000000 /home/gavin/CS6290/simplesim-3.0/CPU2000int/252.eon/exe/eon_peak.ev6 \
+	  /home/gavin/CS6290/simplesim-3.0/CPU2000int/252.eon/data/ref/input/chair.control.cook \
+	  /home/gavin/CS6290/simplesim-3.0/CPU2000int/252.eon/data/ref/input/chair.camera \
+	  /home/gavin/CS6290/simplesim-3.0/CPU2000int/252.eon/data/ref/input/chair.surfaces \
+	  ./chair.cook.ppm ppm \
+	  ./pixels_out.cook 
+rm eon.dat
+rm materials
+rm spectra.dat
+/home/gavin/CS6290/simplesim-3.0/redir.sh  /home/gavin/CS6290/results/Naive/gcc.166.stdout \
+	  /home/gavin/CS6290/results/Naive/gcc.166.stderr /home/gavin/CS6290/simplesim-3.0/sim-safe \
+	   -max:inst 1000000000 /home/gavin/CS6290/simplesim-3.0/CPU2000int/176.gcc/exe/cc1_peak.ev6 < \
+	  /home/gavin/CS6290/simplesim-3.0/CPU2000int/176.gcc/data/ref/input/166.i
+/home/gavin/CS6290/simplesim-3.0/redir.sh  /home/gavin/CS6290/results/Naive/mcf.inp.stdout \
+	/home/gavin/CS6290/results/Naive/mcf.inp.stderr /home/gavin/CS6290/simplesim-3.0/sim-safe \
+	 -max:inst 1000000000 /home/gavin/CS6290/simplesim-3.0/CPU2000int/181.mcf/exe/mcf_peak.ev6 \
+	/home/gavin/CS6290/simplesim-3.0/CPU2000int/181.mcf/data/ref/input/inp.in
+mkdir ./words
+cp /home/gavin/CS6290/simplesim-3.0/CPU2000int/197.parser/data/all/input/words/* ./words/
+/home/gavin/CS6290/simplesim-3.0/redir.sh  /home/gavin/CS6290/results/Naive/parser.ref.stdout \
+	  /home/gavin/CS6290/results/Naive/parser.ref.stderr /home/gavin/CS6290/simplesim-3.0/sim-safe \
+	   -max:inst 1000000000 /home/gavin/CS6290/simplesim-3.0/CPU2000int/197.parser/exe/parser_peak.ev6 \
+	  /home/gavin/CS6290/simplesim-3.0/CPU2000int/197.parser/data/all/input/2.1.dict \
+	  -batch < /home/gavin/CS6290/simplesim-3.0/CPU2000int/197.parser/data/ref/input/ref.in
+rm -f ./words/*
+rmdir words
+mkdir ./twolf
+cp /home/gavin/CS6290/simplesim-3.0/CPU2000int/300.twolf/data/ref/input/ref* ./twolf/
+/home/gavin/CS6290/simplesim-3.0/redir.sh  /home/gavin/CS6290/results/Naive/twolf.ref.stdout \
+	  /home/gavin/CS6290/results/Naive/twolf.ref.stderr /home/gavin/CS6290/simplesim-3.0/sim-safe \
+	   -max:inst 1000000000 /home/gavin/CS6290/simplesim-3.0/CPU2000int/300.twolf/exe/twolf_peak.ev6 \
+	  ./twolf/ref
+rm -f ./twolf/*
+rmdir ./twolf
+cp /home/gavin/CS6290/simplesim-3.0/CPU2000int/253.perlbmk/data/train/input/dictionary .
+/home/gavin/CS6290/simplesim-3.0/redir.sh  /home/gavin/CS6290/results/Naive/perlbmk.scrabbl.stdout \
+	  /home/gavin/CS6290/results/Naive/perlbmk.scrabbl.stderr /home/gavin/CS6290/simplesim-3.0/sim-safe \
+	   -max:inst 1000000000 /home/gavin/CS6290/simplesim-3.0/CPU2000int/253.perlbmk/exe/perlbmk_peak.ev6 \
+	  /home/gavin/CS6290/simplesim-3.0/CPU2000int/253.perlbmk/data/train/input/scrabbl.pl < \
+	  /home/gavin/CS6290/simplesim-3.0/CPU2000int/253.perlbmk/data/train/input/scrabbl.in
+rm -f dictionary
+cp /home/gavin/CS6290/simplesim-3.0/CPU2000fp/188.ammp/data/ref/input/* .
+/home/gavin/CS6290/simplesim-3.0/redir.sh  /home/gavin/CS6290/results/Naive/ammp.ref.stdout \
+	  /home/gavin/CS6290/results/Naive/ammp.ref.stderr /home/gavin/CS6290/simplesim-3.0/sim-safe \
+	   -max:inst 1000000000 /home/gavin/CS6290/simplesim-3.0/CPU2000fp/188.ammp/exe/ammp_peak.ev6 \
+	  < ammp.in
+cp /home/gavin/CS6290/simplesim-3.0/CPU2000fp/183.equake/data/ref/input/* .
+/home/gavin/CS6290/simplesim-3.0/redir.sh  /home/gavin/CS6290/results/Naive/equake.ref.stdout \
+	  /home/gavin/CS6290/results/Naive/equake.ref.stderr /home/gavin/CS6290/simplesim-3.0/sim-safe \
+	   -max:inst 1000000000  /home/gavin/CS6290/simplesim-3.0/CPU2000fp/183.equake/exe/equake_peak.ev6 < \
+	  inp.in
+cp /home/gavin/CS6290/simplesim-3.0/CPU2000fp/191.fma3d/data/ref/input/* .
+/home/gavin/CS6290/simplesim-3.0/redir.sh  /home/gavin/CS6290/results/Naive/fma3d.ref.stdout \
+	/home/gavin/CS6290/results/Naive/fma3d.ref.stderr /home/gavin/CS6290/simplesim-3.0/sim-safe \
+	 -max:inst 1000000000  /home/gavin/CS6290/simplesim-3.0/CPU2000fp/191.fma3d/exe/fma3d_peak.ev6
+
