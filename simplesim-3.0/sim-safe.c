@@ -84,6 +84,30 @@ static counter_t sim_num_refs = 0;
 /* maximum number of inst's to execute */
 static unsigned int max_insts;
 
+int max (int a, int b, int c)
+{
+	if(a > b && a > c) return a;
+	if(b > a && b > c) return b;
+	else return c;
+}
+
+static int REG[64];
+static int MEM[0xFFFF];
+static int REGCYCLE[64];
+static int MEMCYCLE[0xFFFF];
+static int REGUSECYCLE[64];
+static int MEMUSECYCLE[0xFFFF];
+
+static int MEMCYCLERR[0xFFFF];
+static int REGUSECYCLERR[64];
+static int MEMUSECYCLERR[0xFFFF];
+
+int issueCycle = 0;
+int issueCycleRR = 0;
+int jmpIssueOffset = 0;
+int jmpIssueOffsetRR = 0;
+int sim_num_jmpOffset = 0;
+
 /* register simulator-specific options */
 void
 sim_reg_options(struct opt_odb_t *odb)
@@ -142,6 +166,15 @@ sim_init(void)
   /* allocate and initialize memory space */
   mem = mem_create("mem");
   mem_init(mem);
+  memset(REG, 0, 64);
+  memset(MEM, 0, 0xFFFF);
+  memset(REGCYCLE, 0, 64);
+  memset(REGUSECYCLE, 0, 64);
+  memset(MEMCYCLE, 0, 0xFFFF);
+  memset(MEMUSECYCLE, 0, 0xFFFF);
+  memset(MEMUSECYCLERR, 0, 0xFFFF);
+  memset(MEMCYCLERR, 0, 0xFFFF);
+  memset(REGUSECYCLERR, 0, 64);
 }
 
 /* load program into simulated state */
@@ -168,7 +201,9 @@ sim_aux_config(FILE *stream)		/* output stream */
 void
 sim_aux_stats(FILE *stream)		/* output stream */
 {
-  /* nada */
+	printf("Issue Cycle: %d\nILP: %f\n", issueCycle, (float)sim_num_insn/issueCycle);
+	printf("ILP Naive: %f\n", (float)(sim_num_insn - sim_num_jmpOffset) / (issueCycle - jmpIssueOffset));
+	printf("ILP RR: %f\n", (float)(sim_num_insn - sim_num_jmpOffset) / (issueCycleRR - jmpIssueOffsetRR));
 }
 
 /* un-initialize simulator-specific state */
@@ -302,6 +337,7 @@ sim_main(void)
       /* decode the instruction */
       MD_SET_OPCODE(op, inst);
 
+
       /* execute the instruction */
       switch (op)
 	{
@@ -346,6 +382,66 @@ sim_main(void)
 			    is_write ? ACCESS_WRITE : ACCESS_READ,
 			    addr, sim_num_insn, sim_num_insn))
 	dlite_main(regs.regs_PC, regs.regs_NPC, sim_num_insn, &regs, mem);
+
+	//Post simulation stuff
+	char* s;
+	s = MD_OP_FORMAT(op);
+
+	//Copied from md_print_insn
+	int in1 = RA;
+	int in2 = RB;
+	int in3 = RC;
+
+	int out1 = RA;
+	int out2 = RB;
+	int offset = (sword_t)SEXT(OFS);
+
+	// Calcualte data dependency 
+	int RAW = max(REGUSECYCLE[in1], REGUSECYCLE[in2], REGUSECYCLE[in3]);
+	int WAR = max(REGCYCLE[out1], REGCYCLE[out2], 0);
+	int WAW = max(REGUSECYCLE[out1], REGUSECYCLE[out2], 0);
+	int MRAW = 0, MWAR = 0, MWAW = 0, MRAWRR = 0;
+
+	int RAWRR = max(REGUSECYCLERR[in1], REGUSECYCLERR[in2], REGUSECYCLERR[in3]);
+
+	int flags = MD_OP_FLAGS(op);
+	int memOp = flags & F_MEM;
+
+	if(flags & F_LOAD)
+	{
+		MRAW = MEMCYCLE[addr & 0xFFFF];
+		MRAWRR = MEMCYCLERR[addr & 0xFFFF];
+	}
+	if(flags & F_STORE)
+		MWAR = MEMUSECYCLE[addr & 0xFFFF];
+	if(flags & F_STORE)
+		MWAW = MEMCYCLE[addr & 0xFFFF];
+
+	issueCycle = max(max(RAW, WAR, WAW), max(MRAW, MWAR, MWAW), 0);
+	issueCycleRR = max(RAWRR, MRAWRR, 0);
+
+	REGCYCLE[out1] = issueCycle + 1;
+	REGCYCLE[out2] = issueCycle + 1;
+	REGUSECYCLE[in1] = issueCycle + 1;
+	REGUSECYCLE[in2] = issueCycle + 1;
+	REGUSECYCLE[in3] = issueCycle + 1;
+
+	REGUSECYCLERR[in1] = issueCycleRR + 1;
+	REGUSECYCLERR[in2] = issueCycleRR + 1;
+	REGUSECYCLERR[in3] = issueCycleRR + 1;
+
+	if(flags & F_STORE) MEMCYCLE[addr & 0xFFFF] = issueCycle + 1;
+	if(flags & F_LOAD) MEMUSECYCLE[addr & 0xFFFF] = issueCycle + 1;
+
+	//if(flags & F_LOAD) MEMUSECYCLERR[addr & 0xFFFF] = issueCycleRR + 1;
+
+	//Is this a jump?
+	if(flags & (F_DIRJMP | F_INDIRJMP))
+	{
+		sim_num_jmpOffset = sim_num_insn;
+		jmpIssueOffset = issueCycle;
+		jmpIssueOffsetRR = issueCycleRR;
+	}
 
       /* go to the next instruction */
       regs.regs_PC = regs.regs_NPC;
