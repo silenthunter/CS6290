@@ -65,6 +65,8 @@
 #include "stats.h"
 #include "sim.h"
 
+#define STEPSIZE 1000
+
 /*
  * This file implements a functional simulator.  This functional simulator is
  * the simplest, most user-friendly simulator in the simplescalar tool set.
@@ -86,19 +88,20 @@ static unsigned int max_insts;
 
 int max (int a, int b, int c)
 {
-	if(a > b && a > c) return a;
-	if(b > a && b > c) return b;
+	if(a >= b && a >= c) return a;
+	if(b >= a && b >= c) return b;
 	else return c;
 }
 
-static int REG[64];
-static int MEM[0xFFFF];
+//static int REG[64];
+//static int MEM[0xFFFF];
 static int REGCYCLE[64];
 static int MEMCYCLE[0xFFFF];
 static int REGUSECYCLE[64];
 static int MEMUSECYCLE[0xFFFF];
 
 static int MEMCYCLERR[0xFFFF];
+static int REGCYCLERR[64];
 static int REGUSECYCLERR[64];
 static int MEMUSECYCLERR[0xFFFF];
 
@@ -107,6 +110,10 @@ int issueCycleRR = 0;
 int jmpIssueOffset = 0;
 int jmpIssueOffsetRR = 0;
 int sim_num_jmpOffset = 0;
+
+float ILP1[1000000000 / STEPSIZE];
+float ILP2[1000000000 / STEPSIZE];
+float ILP3[1000000000 / STEPSIZE];
 
 /* register simulator-specific options */
 void
@@ -166,8 +173,6 @@ sim_init(void)
   /* allocate and initialize memory space */
   mem = mem_create("mem");
   mem_init(mem);
-  memset(REG, 0, 64);
-  memset(MEM, 0, 0xFFFF);
   memset(REGCYCLE, 0, 64);
   memset(REGUSECYCLE, 0, 64);
   memset(MEMCYCLE, 0, 0xFFFF);
@@ -201,9 +206,14 @@ sim_aux_config(FILE *stream)		/* output stream */
 void
 sim_aux_stats(FILE *stream)		/* output stream */
 {
+	printf("Number Instructions: %d\n", sim_num_insn);
 	printf("Issue Cycle: %d\nILP: %f\n", issueCycle, (float)sim_num_insn/issueCycle);
-	printf("ILP Naive: %f\n", (float)(sim_num_insn - sim_num_jmpOffset) / (issueCycle - jmpIssueOffset));
-	printf("ILP RR: %f\n", (float)(sim_num_insn - sim_num_jmpOffset) / (issueCycleRR - jmpIssueOffsetRR));
+	printf("ILP Naive: %f\n", (float)(sim_num_insn - sim_num_jmpOffset) / (float)(issueCycle - jmpIssueOffset));
+	//printf("ILP RR: %f\n", (float)(sim_num_insn - sim_num_jmpOffset) / (float)(issueCycleRR - jmpIssueOffsetRR));
+	printf("ILP RR: %f\n", (float)(sim_num_insn) / (float)(issueCycleRR));
+	printf("\n%d - %d = %d\n", sim_num_insn, sim_num_jmpOffset, sim_num_insn - sim_num_jmpOffset);
+	printf("\n%d - %d = %d\n", issueCycle, jmpIssueOffset, issueCycle - jmpIssueOffset);
+	printf("\n%f\n", 983337.0/1.0);
 }
 
 /* un-initialize simulator-specific state */
@@ -397,12 +407,12 @@ sim_main(void)
 	int offset = (sword_t)SEXT(OFS);
 
 	// Calcualte data dependency 
-	int RAW = max(REGUSECYCLE[in1], REGUSECYCLE[in2], REGUSECYCLE[in3]);
-	int WAR = max(REGCYCLE[out1], REGCYCLE[out2], 0);
-	int WAW = max(REGUSECYCLE[out1], REGUSECYCLE[out2], 0);
+	int RAW = max(REGCYCLE[in1], REGCYCLE[in2], REGCYCLE[in3]);
+	int WAR = max(REGUSECYCLE[out1], REGUSECYCLE[out2], 0);
+	int WAW = max(REGCYCLE[out1], REGCYCLE[out2], 0);
 	int MRAW = 0, MWAR = 0, MWAW = 0, MRAWRR = 0;
 
-	int RAWRR = max(REGUSECYCLERR[in1], REGUSECYCLERR[in2], REGUSECYCLERR[in3]);
+	int RAWRR = max(REGCYCLERR[in1], REGCYCLERR[in2], REGCYCLERR[in3]);
 
 	int flags = MD_OP_FLAGS(op);
 	int memOp = flags & F_MEM;
@@ -434,6 +444,15 @@ sim_main(void)
 	if(flags & F_LOAD) MEMUSECYCLE[addr & 0xFFFF] = issueCycle + 1;
 
 	//if(flags & F_LOAD) MEMUSECYCLERR[addr & 0xFFFF] = issueCycleRR + 1;
+
+	//Add this ILP to the arrays
+	if(sim_num_insn % STEPSIZE == 0)
+	{
+		int idx = sim_num_insn / STEPSIZE;
+		ILP1[idx] = (float)(sim_num_insn - sim_num_jmpOffset) / (float)(issueCycle - jmpIssueOffset);
+		ILP2[idx] = (float)sim_num_insn/issueCycle;
+		ILP3[idx] = (float)(sim_num_insn) / (float)(issueCycleRR);
+	}
 
 	//Is this a jump?
 	if(flags & (F_DIRJMP | F_INDIRJMP))
