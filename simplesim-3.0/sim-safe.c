@@ -110,6 +110,7 @@ int issueCycleRR = 0;
 int jmpIssueOffset = 0;
 int jmpIssueOffsetRR = 0;
 int sim_num_jmpOffset = 0;
+int issueCycleMax = 0;
 
 float ILP1[1000000000 / STEPSIZE];
 float ILP2[1000000000 / STEPSIZE];
@@ -206,14 +207,21 @@ sim_aux_config(FILE *stream)		/* output stream */
 void
 sim_aux_stats(FILE *stream)		/* output stream */
 {
+	int i;
 	printf("Number Instructions: %d\n", sim_num_insn);
-	printf("Issue Cycle: %d\nILP: %f\n", issueCycle, (float)sim_num_insn/issueCycle);
-	printf("ILP Naive: %f\n", (float)(sim_num_insn - sim_num_jmpOffset) / (float)(issueCycle - jmpIssueOffset));
-	//printf("ILP RR: %f\n", (float)(sim_num_insn - sim_num_jmpOffset) / (float)(issueCycleRR - jmpIssueOffsetRR));
-	printf("ILP RR: %f\n", (float)(sim_num_insn) / (float)(issueCycleRR));
-	printf("\n%d - %d = %d\n", sim_num_insn, sim_num_jmpOffset, sim_num_insn - sim_num_jmpOffset);
-	printf("\n%d - %d = %d\n", issueCycle, jmpIssueOffset, issueCycle - jmpIssueOffset);
-	printf("\n%f\n", 983337.0/1.0);
+	printf("Issue Cycle: %d\n", issueCycle);
+	printf("---ILP NUMS---\n");
+	
+	for(i = 0; i < sim_num_insn / STEPSIZE; i++)
+		if(ILP1[i] > 0) printf("%f,", ILP1[i]);
+		else printf(",");
+	printf("\n");
+	for(i = 0; i < sim_num_insn / STEPSIZE; i++)
+		printf("%f,", ILP2[i]);
+	printf("\n");
+	for(i = 0; i < sim_num_insn / STEPSIZE; i++)
+		printf("%f,", ILP3[i]);
+	printf("\n");
 }
 
 /* un-initialize simulator-specific state */
@@ -430,6 +438,8 @@ sim_main(void)
 	issueCycle = max(max(RAW, WAR, WAW), max(MRAW, MWAR, MWAW), 0);
 	issueCycleRR = max(RAWRR, MRAWRR, 0);
 
+	if(issueCycleMax < issueCycle) issueCycleMax = issueCycle;
+
 	REGCYCLE[out1] = issueCycle + 1;
 	REGCYCLE[out2] = issueCycle + 1;
 	REGUSECYCLE[in1] = issueCycle + 1;
@@ -439,6 +449,8 @@ sim_main(void)
 	REGUSECYCLERR[in1] = issueCycleRR + 1;
 	REGUSECYCLERR[in2] = issueCycleRR + 1;
 	REGUSECYCLERR[in3] = issueCycleRR + 1;
+	REGCYCLERR[out1] = issueCycleRR + 1;
+	REGCYCLERR[out2] = issueCycleRR + 1;
 
 	if(flags & F_STORE) MEMCYCLE[addr & 0xFFFF] = issueCycle + 1;
 	if(flags & F_LOAD) MEMUSECYCLE[addr & 0xFFFF] = issueCycle + 1;
@@ -448,9 +460,10 @@ sim_main(void)
 	//Add this ILP to the arrays
 	if(sim_num_insn % STEPSIZE == 0)
 	{
-		int idx = sim_num_insn / STEPSIZE;
-		ILP1[idx] = (float)(sim_num_insn - sim_num_jmpOffset) / (float)(issueCycle - jmpIssueOffset);
-		ILP2[idx] = (float)sim_num_insn/issueCycle;
+		int idx = sim_num_insn / STEPSIZE - 1;
+		if(issueCycleMax - jmpIssueOffset == 0) ILP1[idx] = -1;
+		else ILP1[idx] = (float)(sim_num_insn - sim_num_jmpOffset) / (float)(issueCycleMax - jmpIssueOffset);
+		ILP2[idx] = (float)sim_num_insn/issueCycleMax;
 		ILP3[idx] = (float)(sim_num_insn) / (float)(issueCycleRR);
 	}
 
@@ -458,7 +471,7 @@ sim_main(void)
 	if(flags & (F_DIRJMP | F_INDIRJMP))
 	{
 		sim_num_jmpOffset = sim_num_insn;
-		jmpIssueOffset = issueCycle;
+		jmpIssueOffset = issueCycleMax;
 		jmpIssueOffsetRR = issueCycleRR;
 	}
 
