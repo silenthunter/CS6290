@@ -93,17 +93,16 @@ int max (int a, int b, int c)
 	else return c;
 }
 
-//static int REG[64];
-//static int MEM[0xFFFF];
-static int REGCYCLE[64];
-static int MEMCYCLE[0xFFFF];
-static int REGUSECYCLE[64];
-static int MEMUSECYCLE[0xFFFF];
+//A series of arrays as defined by Postiff, et al
+static int RegDefCycle[64];
+static int MemDefCycle[0xFFFF];
+static int RegUseCycle[64];
+static int MemUseCycle[0xFFFF];
 
-static int MEMCYCLERR[0xFFFF];
-static int REGCYCLERR[64];
-static int REGUSECYCLERR[64];
-static int MEMUSECYCLERR[0xFFFF];
+static int MemDefCycleRR[0xFFFF];
+static int RegDefCycleRR[64];
+static int RegUseCycleRR[64];
+static int MemUseCycle[0xFFFF];
 
 int issueCycle = 0;
 int issueCycleRR = 0;
@@ -112,6 +111,7 @@ int jmpIssueOffsetRR = 0;
 int sim_num_jmpOffset = 0;
 int issueCycleMax = 0;
 
+//Array which will store the ILP values at certain intervals
 float ILP1[1000000000 / STEPSIZE];
 float ILP2[1000000000 / STEPSIZE];
 float ILP3[1000000000 / STEPSIZE];
@@ -174,13 +174,13 @@ sim_init(void)
   /* allocate and initialize memory space */
   mem = mem_create("mem");
   mem_init(mem);
-  memset(REGCYCLE, 0, 64);
-  memset(REGUSECYCLE, 0, 64);
-  memset(MEMCYCLE, 0, 0xFFFF);
-  memset(MEMUSECYCLE, 0, 0xFFFF);
-  memset(MEMUSECYCLERR, 0, 0xFFFF);
-  memset(MEMCYCLERR, 0, 0xFFFF);
-  memset(REGUSECYCLERR, 0, 64);
+  memset(RegDefCycle, 0, 64);
+  memset(RegUseCycle, 0, 64);
+  memset(MemDefCycle, 0, 0xFFFF);
+  memset(MemUseCycle, 0, 0xFFFF);
+  memset(MemUseCycle, 0, 0xFFFF);
+  memset(MemDefCycleRR, 0, 0xFFFF);
+  memset(RegUseCycleRR, 0, 64);
 }
 
 /* load program into simulated state */
@@ -412,57 +412,60 @@ sim_main(void)
 	int out2 = RB;
 	int offset = (sword_t)SEXT(OFS);
 
-	// Calcualte data dependency 
-	int RAW = max(REGCYCLE[in1], REGCYCLE[in2], REGCYCLE[in3]);
-	int WAR = max(REGUSECYCLE[out1], REGUSECYCLE[out2], 0);
-	int WAW = max(REGCYCLE[out1], REGCYCLE[out2], 0);
+	// Calculate data dependency 
+	int RAW = max(RegDefCycle[in1], RegDefCycle[in2], RegDefCycle[in3]);
+	int WAR = max(RegUseCycle[out1], RegUseCycle[out2], 0);
+	int WAW = max(RegDefCycle[out1], RegDefCycle[out2], 0);
 	int MRAW = 0, MWAR = 0, MWAW = 0, MRAWRR = 0;
 
-	int RAWRR = max(REGCYCLERR[in1], REGCYCLERR[in2], REGCYCLERR[in3]);
+	int RAWRR = max(RegDefCycleRR[in1], RegDefCycleRR[in2], RegDefCycleRR[in3]);
 
 	int flags = MD_OP_FLAGS(op);
 	int memOp = flags & F_MEM;
 
+	//Define memory usage based on the flags set for this operation
 	if(flags & F_LOAD)
 	{
-		MRAW = MEMCYCLE[addr & 0xFFFF];
-		MRAWRR = MEMCYCLERR[addr & 0xFFFF];
+		MRAW = MemDefCycle[addr & 0xFFFF];
+		MRAWRR = MemDefCycleRR[addr & 0xFFFF];
 	}
 	if(flags & F_STORE)
-		MWAR = MEMUSECYCLE[addr & 0xFFFF];
+		MWAR = MemUseCycle[addr & 0xFFFF];
 	if(flags & F_STORE)
-		MWAW = MEMCYCLE[addr & 0xFFFF];
+		MWAW = MemDefCycle[addr & 0xFFFF];
 
 	issueCycle = max(max(RAW, WAR, WAW), max(MRAW, MWAR, MWAW), 0);
 	issueCycleRR = max(RAWRR, MRAWRR, 0);
 
-	if(issueCycleMax < issueCycle) issueCycleMax = issueCycle;
+	if(issueCycleMax < issueCycle) issueCycleMax = issueCycle;//Make sure to track 
+	
+	//Modify the Define and Use arrays
+	RegDefCycle[out1] = issueCycle + 1;
+	RegDefCycle[out2] = issueCycle + 1;
+	RegUseCycle[in1] = issueCycle + 1;
+	RegUseCycle[in2] = issueCycle + 1;
+	RegUseCycle[in3] = issueCycle + 1;
 
-	REGCYCLE[out1] = issueCycle + 1;
-	REGCYCLE[out2] = issueCycle + 1;
-	REGUSECYCLE[in1] = issueCycle + 1;
-	REGUSECYCLE[in2] = issueCycle + 1;
-	REGUSECYCLE[in3] = issueCycle + 1;
+	//A copy of the Define and Use arrays that only account for true dependencies
+	RegUseCycleRR[in1] = issueCycleRR + 1;
+	RegUseCycleRR[in2] = issueCycleRR + 1;
+	RegUseCycleRR[in3] = issueCycleRR + 1;
+	RegDefCycleRR[out1] = issueCycleRR + 1;
+	RegDefCycleRR[out2] = issueCycleRR + 1;
 
-	REGUSECYCLERR[in1] = issueCycleRR + 1;
-	REGUSECYCLERR[in2] = issueCycleRR + 1;
-	REGUSECYCLERR[in3] = issueCycleRR + 1;
-	REGCYCLERR[out1] = issueCycleRR + 1;
-	REGCYCLERR[out2] = issueCycleRR + 1;
+	if(flags & F_STORE) MemDefCycle[addr & 0xFFFF] = issueCycle + 1;
+	if(flags & F_LOAD) MemUseCycle[addr & 0xFFFF] = issueCycle + 1;
 
-	if(flags & F_STORE) MEMCYCLE[addr & 0xFFFF] = issueCycle + 1;
-	if(flags & F_LOAD) MEMUSECYCLE[addr & 0xFFFF] = issueCycle + 1;
-
-	//if(flags & F_LOAD) MEMUSECYCLERR[addr & 0xFFFF] = issueCycleRR + 1;
+	if(flags & F_LOAD) MemUseCycle[addr & 0xFFFF] = issueCycleRR + 1;
 
 	//Add this ILP to the arrays
 	if(sim_num_insn % STEPSIZE == 0)
 	{
 		int idx = sim_num_insn / STEPSIZE - 1;
-		if(issueCycleMax - jmpIssueOffset == 0) ILP1[idx] = -1;
-		else ILP1[idx] = (float)(sim_num_insn - sim_num_jmpOffset) / (float)(issueCycleMax - jmpIssueOffset);
-		ILP2[idx] = (float)sim_num_insn/issueCycleMax;
-		ILP3[idx] = (float)(sim_num_insn) / (float)(issueCycleRR);
+		if(issueCycleMax - jmpIssueOffset == 0) ILP1[idx] = -1;//Look for multiple jumps in a row
+		else ILP1[idx] = (float)(sim_num_insn - sim_num_jmpOffset) / (float)(issueCycleMax - jmpIssueOffset);//Naive
+		ILP2[idx] = (float)sim_num_insn/issueCycleMax;//No CD
+		ILP3[idx] = (float)(sim_num_insn) / (float)(issueCycleRR);//RR and No CD
 	}
 
 	//Is this a jump?
