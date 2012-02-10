@@ -1,0 +1,11 @@
+#!/bin/sh
+gnuplot << EOF
+set term jpeg 
+set output "$1_plot.jpg"
+set multiplot
+set xrange[0:1e6]
+set yrange[0:4]
+set datafile separator ","
+plot "$1" using 2 with lines title "No CD" lt 2,\
+ "$1" using 3 with lines title "RR + No CD" lt 3
+EOF

@@ -213,15 +213,13 @@ sim_aux_stats(FILE *stream)		/* output stream */
 	printf("---ILP NUMS---\n");
 	
 	for(i = 0; i < sim_num_insn / STEPSIZE; i++)
+	{
 		if(ILP1[i] > 0) printf("%f,", ILP1[i]);
 		else printf(",");
-	printf("\n");
-	for(i = 0; i < sim_num_insn / STEPSIZE; i++)
 		printf("%f,", ILP2[i]);
-	printf("\n");
-	for(i = 0; i < sim_num_insn / STEPSIZE; i++)
 		printf("%f,", ILP3[i]);
-	printf("\n");
+		printf("\n");
+	}
 }
 
 /* un-initialize simulator-specific state */
